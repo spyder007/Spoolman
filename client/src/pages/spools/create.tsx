@@ -145,6 +145,9 @@ export const SpoolCreate: React.FC<IResourceComponentsProps & CreateOrCloneProps
 
   const [weightToEnter, setWeightToEnter] = useState(1);
   const [usedWeight, setUsedWeight] = useState(0);
+  const [remainingWeight, setRemainingWeight] = useState(0);
+  const [measuredWeight, setMeasuredWeight] = useState(0);
+
 
   useEffect(() => {
     const newFilamentWeight = selectedFilament?.weight || 0;
@@ -155,14 +158,45 @@ export const SpoolCreate: React.FC<IResourceComponentsProps & CreateOrCloneProps
     if (newSpoolWeight > 0) {
       form.setFieldValue("spool_weight", newSpoolWeight);
     }
+    
+    fullWeightChange(usedWeight, newFilamentWeight, newSpoolWeight);
   }, [selectedFilament]);
 
+  useEffect(() => {
+    // If measure weight is selected, do not change that value, change the inital weight
+    if (weightToEnter == WeightToEnter.measured_weight) {
+      const grossWeight = getGrossWeight();
+      fullWeightChange((grossWeight - measuredWeight), initialWeightValue, spoolWeightValue);
+    }
+    // otherwise, re-calculate measured weight
+    else {
+      fullWeightChange(usedWeight, initialWeightValue, spoolWeightValue);
+    }
+  }, [initialWeightValue, spoolWeightValue]);
+
   const weightChange = (weight: number) => {
-    setUsedWeight(weight);
-    form.setFieldsValue({
-      used_weight: weight,
-    });
+    fullWeightChange(weight, initialWeightValue, spoolWeightValue)
   };
+
+  const fullWeightChange = (usedWeight: number, filamentWeight: number | undefined, spoolWeight?: number | undefined) => {
+    
+    if (!filamentWeight || !spoolWeight) {
+      return;
+    }
+    console.log(`Filament Weight: ${filamentWeight}, Spool Weight ${spoolWeight}`)
+    const remainingWeight = filamentWeight - usedWeight;
+    const measuredWeight = (filamentWeight + spoolWeight) - usedWeight;
+
+    setUsedWeight(usedWeight);
+    setRemainingWeight(remainingWeight)
+    setMeasuredWeight(measuredWeight);
+
+    form.setFieldsValue({
+      used_weight: usedWeight,
+      remaining_weight: remainingWeight,
+      measured_weight: measuredWeight
+    });
+  }
 
   const locations = useSpoolmanLocations(true);
   const [newLocation, setNewLocation] = useState("");
@@ -181,30 +215,13 @@ export const SpoolCreate: React.FC<IResourceComponentsProps & CreateOrCloneProps
     setQuantity(quantity - 1);
   };
 
-  const getSpoolWeight = (): number => {
-    return spoolWeightValue ?? selectedFilament?.spool_weight ?? 0;
-  };
 
   const getFilamentWeight = (): number => {
     return initialWeightValue ?? selectedFilament?.weight ?? 0;
   };
 
   const getGrossWeight = (): number => {
-    const net_weight = getFilamentWeight();
-    const spool_weight = getSpoolWeight();
-    return net_weight + spool_weight;
-  };
-
-  const getMeasuredWeight = (): number => {
-    const grossWeight = getGrossWeight();
-
-    return grossWeight - usedWeight;
-  };
-
-  const getRemainingWeight = (): number => {
-    const initial_weight = getFilamentWeight();
-
-    return initial_weight - usedWeight;
+    return (initialWeightValue ?? 0) + (spoolWeightValue ?? 0);
   };
 
   const isMeasuredWeightEnabled = (): boolean => {
@@ -212,19 +229,11 @@ export const SpoolCreate: React.FC<IResourceComponentsProps & CreateOrCloneProps
       return false;
     }
 
-    const spool_weight = spoolWeightValue;
-
-    return spool_weight || selectedFilament?.spool_weight ? true : false;
+    return spoolWeightValue ? true : false;
   };
 
   const isRemainingWeightEnabled = (): boolean => {
-    const initial_weight = initialWeightValue;
-
-    if (initial_weight) {
-      return true;
-    }
-
-    return selectedFilament?.weight ? true : false;
+    return initialWeightValue ? true : false;
   };
 
   useEffect(() => {
@@ -412,7 +421,7 @@ export const SpoolCreate: React.FC<IResourceComponentsProps & CreateOrCloneProps
             formatter={formatNumberOnUserInput}
             parser={numberParser}
             disabled={weightToEnter != WeightToEnter.remaining_weight}
-            value={getRemainingWeight()}
+            value={remainingWeight}
             onChange={(value) => {
               weightChange(getFilamentWeight() - (value ?? 0));
             }}
@@ -430,7 +439,7 @@ export const SpoolCreate: React.FC<IResourceComponentsProps & CreateOrCloneProps
             formatter={formatNumberOnUserInput}
             parser={numberParser}
             disabled={weightToEnter != WeightToEnter.measured_weight}
-            value={getMeasuredWeight()}
+            value={measuredWeight}
             onChange={(value) => {
               const totalWeight = getGrossWeight();
               weightChange(totalWeight - (value ?? 0));

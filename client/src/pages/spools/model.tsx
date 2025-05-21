@@ -16,6 +16,7 @@ export interface ISpool {
   initial_weight?: number;
   spool_weight?: number;
   remaining_weight?: number;
+  measured_weight?: number;
   used_weight: number;
   remaining_length?: number;
   used_length: number;
